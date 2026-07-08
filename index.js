@@ -60,7 +60,10 @@ function getFileExtension(filename) {
   // TODO: 實作此函式
   // 提示：用 lastIndexOf('.') 找最後一個 .，toLowerCase() 轉小寫
   let extensionTypeName = "";
-  if(!(!filename||filename.trim().length === 0)){
+  if(!(filename || filename.trim().length === 0)){
+    return "";
+
+  }else{
     const positionOfIndex = filename.lastIndexOf(".");
     console.log("positionOfIndex : ",positionOfIndex);
     if(positionOfIndex>0){
@@ -69,14 +72,11 @@ function getFileExtension(filename) {
       extensionTypeName = "";
     }
     console.log("extensionTypeName : ",extensionTypeName);
-  }else{
-    return "";
   }
 
   if(extensionTypeName){
     return extensionTypeName.toLowerCase();
-  }else
-    return "";
+  }else return "";
 }
 
 // ========== 任務三：解析檔案 metadata ==========
@@ -102,6 +102,19 @@ function getFileExtension(filename) {
 function parseFileMetadata(file) {
   // TODO: 實作此函式
   // 提示：呼叫 getFileExtension 取副檔名，Math.round(size / 1024) 算 KB
+  if(!(file || file.originalFilename || file.originalFilename.trim().length === 0)){
+    return {};
+  }else{
+    const filename = file.originalFilename;
+    const ext = getFileExtension(file.originalFilename);
+    const size = file.size;
+    if(size || size > 0 ){
+      const sizeKB = Math.round(size / 1024);
+      return{ filename, sizeKB, ext};
+    }else{
+      return{ filename, sizeKB:0, ext};
+    }
+  }
 }
 
 // ========== 任務四：產出 upload log 字串 ==========
@@ -124,6 +137,13 @@ function parseFileMetadata(file) {
 function formatUploadLog(meta, config) {
   // TODO: 實作此函式
   // 提示：用 template literal 組字串
+  const filename = meta.filename;
+  const sizeKB = meta.sizeKB;
+  const ext = getFileExtension(meta.filename);
+  const uploadDir = config.uploadDir;
+  const gymName = config.gymName;
+
+  return `${gymName} Uploaded ${filename} (${sizeKB}KB) → ${uploadDir}`;
 }
 
 // ========== 任務五：路由分派 ==========
