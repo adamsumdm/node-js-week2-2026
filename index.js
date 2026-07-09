@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const { formidable } = require('formidable');  // formidable v3 用 named import
-
+const contentTypeObj = { 'Content-Type': 'application/json' };
 // ========== 任務一：讀取上傳設定 ==========
 /**
  * 從 process.env 讀取上傳相關設定，回傳設定物件。
@@ -31,9 +31,9 @@ function getUploadConfig() {
   const uploadDir = process.env.UPLOAD_DIR || '/tmp';
   const sizeMB = Number(process.env.MAX_FILE_SIZE_MB || 5);
   const gymName = process.env.GYM_NAME || '未命名健身房';
-  return{
+  return {
     uploadDir,
-    maxFileSize:sizeMB * 1024 * 1024,
+    maxFileSize: sizeMB * 1024 * 1024,
     gymName,
   };
 }
@@ -60,23 +60,18 @@ function getFileExtension(filename) {
   // TODO: 實作此函式
   // 提示：用 lastIndexOf('.') 找最後一個 .，toLowerCase() 轉小寫
   let extensionTypeName = "";
-  if(!(filename || filename.trim().length === 0)){
+  if (!filename || filename.trim().length === 0) {
     return "";
 
-  }else{
+  } else {
     const positionOfIndex = filename.lastIndexOf(".");
-    console.log("positionOfIndex : ",positionOfIndex);
-    if(positionOfIndex>0){
-      extensionTypeName = filename.slice(positionOfIndex);
-    }else{
+    if (positionOfIndex > 0) {
+      extensionTypeName = filename.slice(positionOfIndex).toLowerCase();
+    } else {
       extensionTypeName = "";
     }
-    console.log("extensionTypeName : ",extensionTypeName);
   }
-
-  if(extensionTypeName){
-    return extensionTypeName.toLowerCase();
-  }else return "";
+  return extensionTypeName.toLowerCase();
 }
 
 // ========== 任務三：解析檔案 metadata ==========
@@ -102,19 +97,18 @@ function getFileExtension(filename) {
 function parseFileMetadata(file) {
   // TODO: 實作此函式
   // 提示：呼叫 getFileExtension 取副檔名，Math.round(size / 1024) 算 KB
-  if(!(file || file.originalFilename || file.originalFilename.trim().length === 0)){
+  // 1. 防呆：如果沒有 file 或是 originalFilename 無效，提早結束
+  if (!file || !file.originalFilename || file.originalFilename.trim().length === 0) {
     return {};
-  }else{
-    const filename = file.originalFilename;
-    const ext = getFileExtension(file.originalFilename);
-    const size = file.size;
-    if(size || size > 0 ){
-      const sizeKB = Math.round(size / 1024);
-      return{ filename, sizeKB, ext};
-    }else{
-      return{ filename, sizeKB:0, ext};
-    }
   }
+  // 2. 取出需要的資料
+  const filename = file.originalFilename;
+  const ext = getFileExtension(filename);
+  // 3. 處理大小：如果 file.size 存在且大於 0，就使用 file.size，否則當作 0
+  const size = (file.size && file.size > 0) ? file.size : 0;
+  const sizeKB = Math.round(size / 1024);
+  // 4. 回傳整理好的物件 (利用 ES6 縮寫)
+  return { filename, sizeKB, ext };
 }
 
 // ========== 任務四：產出 upload log 字串 ==========
@@ -183,7 +177,50 @@ function router(req, res, config) {
   //     form.on('error', (err) => {
   //       console.log(err); // 記錄 log、清理暫存檔、額外監控可以寫在這邊
   //     });  
+  if (req.method === 'POST' && req.url == '/coaches/avatar') {
+    handleUpload(req, res, config);
+    return;
+  }
+
+  //其他路徑一律回應 404
+  res.writeHead(404, contentTypeObj);
+  res.end(JSON.stringify({ error: 'Not Found' }));
 }
+
+function handleUpload(req, res, config) {
+
+  const form = formidable({
+    uploadDir: config.uploadDir,        // 檔案存到哪個資料夾
+    maxFileSize: config.maxFileSize,    // 單位是 bytes，太大會報錯
+    keepExtensions: true,               // 保留 .jpg / .png 等副檔名
+  });
+
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      res.writeHead(500, contentTypeObj);
+      res.end(JSON.stringify({ error: err.message }));
+      return;
+    }
+
+    const file = files.file?.[0];
+    if (!file) {
+      res.writeHead(400, contentTypeObj);
+      res.end(JSON.stringify({ error: 'No file uploaded' }));
+      return;
+    }
+
+    // 走到這，代表檔案解析完成
+    res.writeHead(200, contentTypeObj);
+    res.end(JSON.stringify({
+      filename: file.originalFilename,
+      sizeKB: file.size,
+      ext: getFileExtension(file.originalFilename),
+      savedPath: file.filepath
+    }));
+  });
+}
+
+
 
 // ========== 任務六：建立上傳 server ==========
 /**
@@ -204,6 +241,8 @@ function router(req, res, config) {
 function createUploadServer(config) {
   // TODO: 實作此函式
   // 提示：主邏輯都在 router 裡，這邊函式內容不多
+  const server = http.createServer((req, res) => router(req, res, config));
+  return server;
 }
 
 module.exports = {
